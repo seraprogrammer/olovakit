@@ -1,0 +1,14 @@
+{
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "olovakit": "^1.0.1",
+    "olovakitplugin": "^1.0.0"
+  },
+  "devDependencies": {
+    "vite": "^6.2.2"
+  }
+}
