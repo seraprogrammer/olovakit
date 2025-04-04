@@ -32,8 +32,44 @@ const SVG_TAGS = new Set([
   "foreignObject",
 ]);
 
-const renderCache = new Map();
-const MAX_CACHE_SIZE = 100;
+class LRUCache {
+  constructor(maxSize) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+    this.keyOrder = [];
+  }
+
+  get(key) {
+    if (!this.cache.has(key)) return undefined;
+
+    // Move accessed key to most recently used
+    this.keyOrder = this.keyOrder.filter((k) => k !== key);
+    this.keyOrder.push(key);
+
+    return this.cache.get(key);
+  }
+
+  set(key, value) {
+    if (this.cache.has(key)) {
+      // Update existing key position
+      this.keyOrder = this.keyOrder.filter((k) => k !== key);
+    } else if (this.cache.size >= this.maxSize) {
+      // Remove least recently used item
+      const lruKey = this.keyOrder.shift();
+      this.cache.delete(lruKey);
+    }
+
+    this.cache.set(key, value);
+    this.keyOrder.push(key);
+    return value;
+  }
+
+  has(key) {
+    return this.cache.has(key);
+  }
+}
+
+const renderCache = new LRUCache(100);
 
 function memoizeRender(Component, props, pathKey) {
   const cacheKey = `${pathKey}-${JSON.stringify(props)}`;
@@ -42,23 +78,15 @@ function memoizeRender(Component, props, pathKey) {
     return renderCache.get(cacheKey);
   }
 
-  if (renderCache.size >= MAX_CACHE_SIZE) {
-
-    const firstKey = renderCache.keys().next().value;
-    renderCache.delete(firstKey);
-  }
-
   const result = Component(props);
-  renderCache.set(cacheKey, result);
-  return result;
+  return renderCache.set(cacheKey, result);
 }
 
 function createElement(type, props, ...children) {
-
   props = props || {};
 
   let processedChildren = children
-    .flat(Infinity) 
+    .flat(Infinity)
     .map((child) =>
       child == null
         ? createTextElement("")
@@ -73,7 +101,7 @@ function createElement(type, props, ...children) {
       : [props.children];
 
     processedChildren = propsChildren
-      .flat(Infinity) 
+      .flat(Infinity)
       .map((child) =>
         child == null
           ? createTextElement("")
@@ -84,7 +112,7 @@ function createElement(type, props, ...children) {
   }
 
   const newProps = { ...props };
-  delete newProps.children; 
+  delete newProps.children;
 
   return {
     type,
@@ -180,7 +208,6 @@ function setEffect(effect, deps) {
 
   const hook = component.hooks[hookIndex];
   if (!arraysEqual(hook.deps, deps)) {
-
     if (hook.cleanup) {
       setTimeout(() => {
         if (typeof hook.cleanup === "function") {
@@ -196,32 +223,6 @@ function setEffect(effect, deps) {
       const cleanup = effect();
       hook.cleanup = cleanup;
     }, 0);
-  }
-}
-
-function setLayoutEffect(effect, deps) {
-  const component = currentComponent;
-  const hookIndex = component.hookIndex++;
-
-  if (!component.hooks[hookIndex]) {
-    component.hooks[hookIndex] = { effect, deps: null, cleanup: null };
-  }
-
-  const hook = component.hooks[hookIndex];
-  if (!arraysEqual(hook.deps, deps)) {
-    if (hook.cleanup) {
-      if (typeof hook.cleanup === "function") {
-        hook.cleanup();
-      }
-    }
-
-    hook.effect = effect;
-    hook.deps = deps;
-
-    queueMicrotask(() => {
-      const cleanup = effect();
-      hook.cleanup = cleanup;
-    });
   }
 }
 
@@ -255,10 +256,7 @@ function setContext(context) {
   const component = currentComponent;
 
   setEffect(() => {
-
-    return () => {
-
-    };
+    return () => {};
   }, [contextProviders.get(context._contextId)]);
 
   return contextProviders.get(context._contextId) !== undefined
@@ -291,24 +289,7 @@ function Fragment(props) {
   return props.children;
 }
 
-function ErrorBoundary(props) {
-  const [hasError, setHasError] = setState(false);
-  const [error, setError] = setState(null);
-
-  const componentDidCatch = (error) => {
-    setHasError(true);
-    setError(error);
-  };
-
-  if (hasError) {
-    return props.fallback ? props.fallback(error) : null;
-  }
-
-  return props.children;
-}
-
 function buildVDOM(vdom, path) {
-
   if (!vdom) return null;
 
   if (Array.isArray(vdom)) {
@@ -323,13 +304,11 @@ function buildVDOM(vdom, path) {
   }
 
   try {
-
     if (typeof vdom !== "object") {
       return createTextElement(String(vdom));
     }
 
     if (vdom.type === Fragment) {
-
       return {
         type: Fragment,
         props: {
@@ -341,7 +320,6 @@ function buildVDOM(vdom, path) {
         },
       };
     } else if (typeof vdom.type === "string" || vdom.type === "TEXT") {
-
       const children = Array.isArray(vdom.props.children)
         ? vdom.props.children.map((child, index) =>
             buildVDOM(child, path.concat(index))
@@ -349,7 +327,6 @@ function buildVDOM(vdom, path) {
         : [buildVDOM(vdom.props.children, path.concat(0))];
       return { type: vdom.type, props: { ...vdom.props, children } };
     } else if (typeof vdom.type === "function") {
-
       const pathKey = path.join(".");
       let componentState = componentStateMap.get(pathKey);
       if (!componentState) {
@@ -358,12 +335,11 @@ function buildVDOM(vdom, path) {
       }
       currentComponent = componentState;
       currentComponent.hookIndex = 0;
-      currentComponent._pathKey = pathKey; 
+      currentComponent._pathKey = pathKey;
 
       vdom._pathKey = pathKey;
 
       try {
-
         const isPure =
           vdom.type.isPure ||
           (vdom.type.name && vdom.type.name.startsWith("Memo"));
@@ -384,7 +360,6 @@ function buildVDOM(vdom, path) {
         );
       }
     } else {
-
       console.warn("Invalid vdom type:", vdom);
       return createTextElement("");
     }
@@ -399,7 +374,6 @@ function buildVDOM(vdom, path) {
 }
 
 function createDOM(vdom) {
-
   if (!vdom) {
     return document.createComment("empty node");
   }
@@ -447,98 +421,7 @@ function createDOM(vdom) {
   return dom;
 }
 
-const suspenseRegistry = new Map();
-let suspenseIdCounter = 0;
-
-const SuspenseContext = createContext({
-  register: () => 0,
-  setLoading: () => {},
-});
-
-function Suspense(props) {
-  const [isLoading, setIsLoading] = setState(false);
-  const suspenseId = setRef(suspenseIdCounter++);
-
-  setEffect(() => {
-    suspenseRegistry.set(suspenseId.current, {
-      setLoading: (loading) => {
-        setIsLoading(loading);
-      },
-    });
-
-    return () => {
-      suspenseRegistry.delete(suspenseId.current);
-    };
-  }, []);
-
-  const contextValue = setMemo(
-    () => ({
-      register: () => suspenseId.current,
-      setLoading: (loading) => setIsLoading(loading),
-    }),
-    []
-  );
-
-  return createElement(
-    SuspenseContext.Provider,
-    { value: contextValue },
-    isLoading ? props.fallback : props.children
-  );
-}
-
-function lazy(importFn) {
-  return function LazyComponent(props) {
-    const [Component, setComponent] = setState(null);
-    const suspenseContext = setContext(SuspenseContext);
-    const suspenseId = setRef(null);
-
-    setEffect(() => {
-      if (suspenseId.current === null) {
-        suspenseId.current = suspenseContext.register();
-      }
-    }, []);
-
-    setEffect(() => {
-      if (!Component) {
-
-        if (suspenseId.current !== null) {
-          const suspense = suspenseRegistry.get(suspenseId.current);
-          if (suspense) {
-            suspense.setLoading(true);
-          }
-        }
-
-        importFn()
-          .then((module) => {
-            setComponent(() => module.default);
-
-            if (suspenseId.current !== null) {
-              const suspense = suspenseRegistry.get(suspenseId.current);
-              if (suspense) {
-                suspense.setLoading(false);
-              }
-            }
-          })
-          .catch((error) => {
-            console.error("Failed to load component:", error);
-
-            if (suspenseId.current !== null) {
-              const suspense = suspenseRegistry.get(suspenseId.current);
-              if (suspense) {
-                suspense.setLoading(false);
-              }
-            }
-          });
-      }
-    }, [Component]);
-
-    if (!Component) return null;
-    return createElement(Component, props);
-  };
-}
-
 function applyProps(dom, oldProps = {}, newProps = {}, isSvg = false) {
-
   if (!dom || typeof dom.setAttribute !== "function") {
     return;
   }
@@ -572,7 +455,7 @@ function applyProps(dom, oldProps = {}, newProps = {}, isSvg = false) {
 
   if (newProps.dangerouslySetInnerHTML) {
     dom.innerHTML = newProps.dangerouslySetInnerHTML.__html || "";
-    return; 
+    return;
   }
 
   if (
@@ -607,12 +490,9 @@ function applyProps(dom, oldProps = {}, newProps = {}, isSvg = false) {
           }
           dom.addEventListener(eventName, value);
         } else if (typeof value !== "function" && typeof value !== "object") {
-
           if (isSvg) {
-
             dom.setAttribute(key, value);
           } else {
-
             if (key in dom) {
               dom[key] = value;
             } else {
@@ -630,7 +510,6 @@ function applyProps(dom, oldProps = {}, newProps = {}, isSvg = false) {
 function cleanupComponent(pathKey) {
   const componentState = componentStateMap.get(pathKey);
   if (componentState) {
-
     componentState.hooks.forEach((hook) => {
       if (hook.cleanup && typeof hook.cleanup === "function") {
         hook.cleanup();
@@ -642,14 +521,12 @@ function cleanupComponent(pathKey) {
 }
 
 function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
-
   if (!parentDOM || !parentDOM.childNodes) {
     console.warn("Invalid parent DOM in updateDOM:", parentDOM);
     return;
   }
 
   if (Array.isArray(previousVDOM) && Array.isArray(newVDOM)) {
-
     const keyMap = new Map();
     const freeIndexes = [];
 
@@ -675,7 +552,6 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
 
         previousVDOM[oldIndex] = null;
       } else {
-
         const oldIndex = freeIndexes[freeIndex++] || index + i;
         updateDOM(parentDOM, previousVDOM[oldIndex], child, oldIndex);
         if (oldIndex < previousVDOM.length) {
@@ -694,7 +570,6 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
   }
 
   if (previousVDOM?.type === Fragment && newVDOM?.type === Fragment) {
-
     const maxChildren = Math.max(
       previousVDOM.props.children.length,
       newVDOM.props.children.length
@@ -715,7 +590,6 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
     const container = newVDOM.props.container;
 
     if (previousVDOM && previousVDOM.type === "PORTAL") {
-
       const maxChildren = Math.max(
         previousVDOM.props.children.length,
         newVDOM.props.children.length
@@ -730,7 +604,6 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
         );
       }
     } else {
-
       newVDOM.props.children.forEach((child, i) => {
         updateDOM(container, null, child, i);
       });
@@ -739,7 +612,6 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
   }
 
   if (!previousVDOM && newVDOM) {
-
     const newDOM = createDOM(newVDOM);
     if (newDOM) {
       if (parentDOM.childNodes.length <= index) {
@@ -749,19 +621,17 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
       }
     }
   } else if (previousVDOM && !newVDOM) {
-
     if (parentDOM.childNodes[index]) {
       parentDOM.removeChild(parentDOM.childNodes[index]);
     }
 
     if (typeof previousVDOM.type === "function") {
-      const pathKey = previousVDOM._pathKey; 
+      const pathKey = previousVDOM._pathKey;
       if (pathKey) {
         cleanupComponent(pathKey);
       }
     }
   } else if (previousVDOM && newVDOM && previousVDOM.type !== newVDOM.type) {
-
     const newDOM = createDOM(newVDOM);
     if (newDOM) {
       if (index < parentDOM.childNodes.length) {
@@ -771,9 +641,7 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
       }
     }
   } else if (previousVDOM && newVDOM) {
-
     if (newVDOM.type === "TEXT") {
-
       if (index < parentDOM.childNodes.length) {
         const textNode = parentDOM.childNodes[index];
         if (previousVDOM.props.nodeValue !== newVDOM.props.nodeValue) {
@@ -782,7 +650,6 @@ function updateDOM(parentDOM, previousVDOM, newVDOM, index = 0) {
         newVDOM.dom = textNode;
       }
     } else {
-
       if (index < parentDOM.childNodes.length) {
         const domNode = parentDOM.childNodes[index];
         const isSvg = SVG_TAGS.has(newVDOM.type);
@@ -922,15 +789,6 @@ const renderApp = debounce(() => {
   }
 }, 16);
 
-function forwardRef(render) {
-  return function ForwardRefComponent(props) {
-    const ref = props.forwardedRef;
-    const propsWithoutRef = { ...props };
-    delete propsWithoutRef.forwardedRef;
-    return render(propsWithoutRef, ref);
-  };
-}
-
 function memo(Component, areEqual) {
   function MemoComponent(props) {
     const component = currentComponent;
@@ -993,29 +851,6 @@ function shallowEqual(objA, objB) {
   return true;
 }
 
-function createPortal(children, container) {
-  return {
-    type: "PORTAL",
-    props: {
-      children,
-      container,
-    },
-  };
-}
-
-function setId() {
-  const component = currentComponent;
-  const hookIndex = component.hookIndex++;
-
-  if (!component.hooks[hookIndex]) {
-
-    const id = `olova-${component._pathKey || ""}-${hookIndex}`;
-    component.hooks[hookIndex] = { id };
-  }
-
-  return component.hooks[hookIndex].id;
-}
-
 function createRoot(container) {
   return {
     render: (element) => {
@@ -1023,7 +858,6 @@ function createRoot(container) {
       render(element, container);
     },
     unmount: () => {
-
       while (container.firstChild) {
         container.removeChild(container.firstChild);
       }
@@ -1039,17 +873,6 @@ function createRoot(container) {
   };
 }
 
-function startTransition(callback) {
-  const prevPriority = currentPriority;
-  currentPriority = PRIORITY.LOW;
-
-  try {
-    callback();
-  } finally {
-    currentPriority = prevPriority;
-  }
-}
-
 let isBatchingUpdates = false;
 const pendingStateUpdates = [];
 
@@ -1063,7 +886,6 @@ function batchUpdates(callback) {
     isBatchingUpdates = prevIsBatchingUpdates;
 
     if (!isBatchingUpdates && pendingStateUpdates.length > 0) {
-
       const updates = [...pendingStateUpdates];
       pendingStateUpdates.length = 0;
 
@@ -1073,172 +895,10 @@ function batchUpdates(callback) {
   }
 }
 
-function createComponent(render, options = {}) {
-  function Component(props) {
-    const [state, setState] = setState(options.initialState || {});
-
-    const instance = {
-      props,
-      state,
-      setState: (newState) => {
-        if (typeof newState === "function") {
-          setState((prevState) => ({ ...prevState, ...newState(prevState) }));
-        } else {
-          setState((prevState) => ({ ...prevState, ...newState }));
-        }
-      },
-    };
-
-    const prevProps = setRef(props);
-    const prevState = setRef(state);
-
-    const shouldUpdate = options.shouldComponentUpdate
-      ? options.shouldComponentUpdate.call(
-          instance,
-          props,
-          state,
-          prevProps.current,
-          prevState.current
-        )
-      : true;
-
-    setEffect(() => {
-      prevProps.current = props;
-      prevState.current = state;
-    });
-
-    if (!shouldUpdate) {
-      return prevRender.current;
-    }
-
-    const result = render.call(instance, props, state);
-    const prevRender = setRef(result);
-    prevRender.current = result;
-
-    return result;
-  }
-
-  Component.isPure = !!options.pure;
-
-  return Component;
-}
-
-function createVirtualList({ itemHeight, overscan = 5, estimatedItemSize }) {
-  return function VirtualList(props) {
-    const { items, renderItem, height, width } = props;
-    const containerRef = setRef(null);
-    const [scrollTop, setScrollTop] = setState(0);
-
-    const itemCount = items.length;
-    const getItemHeight =
-      typeof itemHeight === "function" ? itemHeight : () => itemHeight;
-
-    const visibleHeight = height;
-
-    let startIndex = 0;
-    let endIndex = 0;
-    let offsetY = 0;
-
-    if (typeof itemHeight === "number") {
-
-      startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
-      endIndex = Math.min(
-        itemCount - 1,
-        Math.ceil((scrollTop + visibleHeight) / itemHeight) + overscan
-      );
-      offsetY = startIndex * itemHeight;
-    } else {
-
-      let accHeight = 0;
-      for (let i = 0; i < itemCount; i++) {
-        const height = estimatedItemSize || getItemHeight(items[i], i);
-        if (accHeight + height > scrollTop - overscan * height) {
-          startIndex = i;
-          offsetY = accHeight;
-          break;
-        }
-        accHeight += height;
-      }
-
-      accHeight = offsetY;
-      for (let i = startIndex; i < itemCount; i++) {
-        const height = estimatedItemSize || getItemHeight(items[i], i);
-        accHeight += height;
-        if (accHeight > scrollTop + visibleHeight + overscan * height) {
-          endIndex = i;
-          break;
-        }
-      }
-      if (endIndex === 0) endIndex = itemCount - 1;
-    }
-
-    const handleScroll = (e) => {
-      setScrollTop(e.target.scrollTop);
-    };
-
-    const visibleItems = [];
-    for (let i = startIndex; i <= endIndex; i++) {
-      if (i >= 0 && i < itemCount) {
-        visibleItems.push({
-          index: i,
-          item: items[i],
-          offsetY: typeof itemHeight === "number" ? i * itemHeight : null, 
-        });
-      }
-    }
-
-    return createElement(
-      "div",
-      {
-        ref: containerRef,
-        style: {
-          height: `${height}px`,
-          width: `${width}px`,
-          overflow: "auto",
-          position: "relative",
-        },
-        onScroll: handleScroll,
-      },
-      createElement(
-        "div",
-        {
-          style: {
-            height:
-              typeof itemHeight === "number"
-                ? `${itemCount * itemHeight}px`
-                : undefined,
-            position: "relative",
-          },
-        },
-        visibleItems.map(({ index, item, offsetY }) =>
-          createElement(
-            "div",
-            {
-              key: index,
-              style: {
-                position: "absolute",
-                top: `${offsetY}px`,
-                width: "100%",
-              },
-            },
-            renderItem(item, index)
-          )
-        )
-      )
-    );
-  };
-}
-
-function pure(Component) {
-  Component.isPure = true;
-  return Component;
-}
-
 export {
   render,
   setState,
   setEffect,
-  setLayoutEffect,
   setReducer,
   setMemo,
   setCallback,
@@ -1248,18 +908,8 @@ export {
   createTextElement,
   createContext,
   Fragment,
-  ErrorBoundary,
-  Suspense,
-  lazy,
-  forwardRef,
   memo,
-  createPortal,
   createRoot,
-  setId,
-  startTransition,
   enableConcurrentMode,
   batchUpdates,
-  createComponent,
-  createVirtualList,
-  pure,
 };
