@@ -1,5 +1,7 @@
 # OlovaKit
+
 > 🚀 Build Smoothly. Ship Fast. Explore Freely.
+
 OlovaKit is a lightweight JavaScript UI library inspired by React, Preact, and SolidJS.  
 It provides a virtual DOM implementation with JSX support, hooks for state management, and a simple routing system.
 
