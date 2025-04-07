@@ -1,23 +1,20 @@
-import { setState, createElement, Fragment } from "olovakit";
-import Hello from "./hello.jsx";
-export default function app() {
-  const [count, setCount] = setState(0);
-  const [data, setData] = setState([
-    {
-      id: 1,
-      name: "John Doe",
-    },
-  ]);
+import { setState } from "olovakit";
+
+const App = () => {
+  const [message, setMessage] = setState("Hello");
   return (
     <>
-      <Hello children={"Hello World"} />
-      <h1>{count}</h1>
-      <button onClick={() => setCount(count + 1)}>increment</button>
-      <ul>
-        {data.map((item) => (
-          <li key={item.id}>{item.name}</li>
-        ))}
-      </ul>
+      <div className="flex flex-col items-center justify-center h-screen gap-4">
+        <h1 className="text-2xl font-bold">{message}</h1>
+        <button
+          className="bg-blue-500 text-white px-4 py-2 rounded-md"
+          onClick={() => setMessage("Hello olovakit")}
+        >
+          Change message
+        </button>
+      </div>
     </>
   );
-}
+};
+
+export default App;
