@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
-import olovakitplugin from "olovakitplugin";
+import olovakitPlugin from "olovakitplugin";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [olovakitplugin()],
+  plugins: [olovakitPlugin(), tailwindcss()],
 });
