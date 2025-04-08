@@ -87,6 +87,7 @@ function createElement(type, props, ...children) {
 
   let processedChildren = children
     .flat(Infinity)
+    .filter(child => child !== true && child !== false)
     .map((child) =>
       child == null
         ? createTextElement("")
@@ -102,6 +103,7 @@ function createElement(type, props, ...children) {
 
     processedChildren = propsChildren
       .flat(Infinity)
+      .filter(child => child !== true && child !== false)
       .map((child) =>
         child == null
           ? createTextElement("")
@@ -893,6 +895,11 @@ function batchUpdates(callback) {
       renderApp();
     }
   }
+}
+// Make Fragment and createElement globally available
+if (typeof window !== 'undefined') {
+  window.Fragment = Fragment;
+  window.createElement = createElement;
 }
 
 export {
